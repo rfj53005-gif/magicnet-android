@@ -23,8 +23,7 @@ use super::legacy::cleanup_legacy_storage;
 use super::log::Log;
 use super::mirrors::*;
 use super::storage::*;
-use super::zip::ZipArchive;
-use super::{Config, Error, Installer, Result};
+use super::{Config, Installer, Result};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -303,6 +302,9 @@ pub(super) fn archive_fixture(root: &Path, manifest: &Manifest, bundled: &[(&str
 // ---------------------------------------------------------------------------
 
 pub(super) struct Request {
+    // Recorded by the parser for fidelity with Go's request
+    // fixture; only the path drives routing decisions in these tests.
+    #[allow(dead_code)]
     pub(super) method: String,
     pub(super) path: String,
     pub(super) headers: HashMap<String, String>,
@@ -2229,3 +2231,318 @@ fn download_route_is_reused_across_changed_components() {
 
 
 
+
+// ---------------------------------------------------------------------------
+// Legacy cleanup regressions (Go: legacy_cleanup_test.go)
+// ---------------------------------------------------------------------------
+
+fn legacy_layout(root: &Path) -> (PathBuf, PathBuf) {
+    let adb = root.join("data/adb");
+    let module = adb.join("modules_update/MagicNet");
+    write_file(&module.join("module.prop"), b"id=MagicNet\nversion=v1.6.3\n");
+    (adb, module)
+}
+
+fn seed_legacy_cache(adb: &Path) -> PathBuf {
+    let cache = adb.join("magicnet-components");
+    write_file(&cache.join("install.lock"), b"");
+    for version in ["a", "b", "c", "d"] {
+        let name = format!("{}.zip", version.repeat(64));
+        write_file(&cache.join(name), b"old component");
+    }
+    write_file(&cache.join(".download-12345"), b"interrupted transfer");
+    cache
+}
+
+fn assert_legacy_present(path: &Path, present: bool) {
+    assert_eq!(
+        fs::symlink_metadata(path).is_ok(),
+        present,
+        "path {} presence",
+        path.display()
+    );
+}
+
+fn set_directory_age_past(path: &Path) {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let name = CString::new(path.as_os_str().as_bytes()).expect("cstring path");
+    let past = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs()
+        .saturating_sub(3600) as libc::time_t;
+    let times = [libc::timespec { tv_sec: past, tv_nsec: 0 }; 2];
+    assert_eq!(
+        unsafe { libc::utimensat(libc::AT_FDCWD, name.as_ptr(), times.as_ptr(), 0) },
+        0,
+        "utimensat {}",
+        path.display()
+    );
+}
+
+fn replace_root_with_symlink(path: &Path) -> PathBuf {
+    let text = path.to_str().expect("ascii test path").to_string();
+    let target = PathBuf::from(text + "-target");
+    fs::rename(path, &target).expect("rename root");
+    std::os::unix::fs::symlink(&target, path).expect("symlink root");
+    target
+}
+
+#[test]
+fn legacy_cleanup_removes_old_versions_without_touching_current_state() {
+    let root = TempDir::new();
+    let (adb, module) = legacy_layout(root.path());
+    let cache = seed_legacy_cache(&adb);
+    let log = adb.join("cache/MagicNet");
+    write_file(&log.join("kam.log"), b"old log");
+    write_file(&log.join("kam.log.1"), b"older log");
+    for parent in ["modules", "modules_update"] {
+        let backup = adb.join(parent).join("MagicNet.install-backup.2147483647");
+        write_file(
+            &backup.join(".magicnet-install-backup-v1"),
+            b"magicnet-install-backup-v1\n",
+        );
+        let readonly = backup.join("readonly");
+        write_file(&readonly.join("old-secret"), b"old backup");
+        fs::set_permissions(&readonly, fs::Permissions::from_mode(0o500))
+            .expect("chmod readonly");
+    }
+    let protected: Vec<PathBuf> = vec![
+        module.join(".config/sing-box/subscription.url"),
+        module.join(".config/sing-box/config.json.pre-upgrade"),
+        module.join(".state/network-access-recovery/record.json"),
+        adb.join("modules/AnotherVPN/keep"),
+        adb.join("modules/.magicnet-components-123/.rollback/bin/sing-box"),
+    ];
+    for name in &protected {
+        write_file(name, b"preserve these bytes");
+    }
+    for attempt in 0..3 {
+        cleanup_legacy_storage(&module)
+            .unwrap_or_else(|error| panic!("legacy cleanup attempt {}: {}", attempt, error.message()));
+    }
+    assert_legacy_present(&cache, false);
+    assert_legacy_present(&log, false);
+    for parent in ["modules", "modules_update"] {
+        assert_legacy_present(
+            &adb.join(parent).join("MagicNet.install-backup.2147483647"),
+            false,
+        );
+    }
+    for name in &protected {
+        assert_content(name, b"preserve these bytes");
+    }
+}
+
+#[test]
+fn legacy_cleanup_respects_cache_lock() {
+    let root = TempDir::new();
+    let (adb, module) = legacy_layout(root.path());
+    let cache = seed_legacy_cache(&adb);
+    let lock = open_no_follow(&cache.join("install.lock")).expect("legacy lock file");
+    let raw = std::os::fd::AsRawFd::as_raw_fd(&lock);
+    assert_eq!(unsafe { libc::flock(raw, libc::LOCK_EX | libc::LOCK_NB) }, 0);
+    let error = cleanup_legacy_storage(&module)
+        .expect_err("busy legacy cache was reported as cleaned");
+    assert!(
+        error.message().contains("legacy component cache is busy"),
+        "unexpected error: {}",
+        error.message()
+    );
+    assert_legacy_present(&cache.join(format!("{}.zip", "a".repeat(64))), true);
+    assert_eq!(unsafe { libc::flock(raw, libc::LOCK_UN) }, 0);
+    drop(lock);
+    cleanup_legacy_storage(&module).expect("cleanup after lock release");
+    assert_legacy_present(&cache, false);
+}
+
+#[test]
+fn legacy_cleanup_preserves_unknown_and_linked_files() {
+    let root = TempDir::new();
+    let (adb, module) = legacy_layout(root.path());
+    let cache = seed_legacy_cache(&adb);
+    let outside = root.join("data/outside");
+    write_file(&outside, b"keep outside");
+    let linked = cache.join(format!("{}.zip", "e".repeat(64)));
+    std::os::unix::fs::symlink(&outside, &linked).expect("symlink archive");
+    let unknown = cache.join("personal.zip");
+    write_file(&unknown, b"keep unknown");
+    let log = adb.join("cache/MagicNet");
+    write_file(&log.join("keep"), b"unrelated log");
+    std::os::unix::fs::symlink(&outside, log.join("kam.log")).expect("symlink log");
+    cleanup_legacy_storage(&module).expect("legacy cleanup");
+    for path in [
+        linked.clone(),
+        outside.clone(),
+        unknown.clone(),
+        cache.join("install.lock"),
+        log.join("keep"),
+        log.join("kam.log"),
+    ] {
+        assert_legacy_present(&path, true);
+    }
+    assert_legacy_present(&cache.join(format!("{}.zip", "a".repeat(64))), false);
+}
+
+#[test]
+fn legacy_cleanup_rejects_symlink_roots_and_wrong_identity() {
+    for mode in [
+        "wrong-id",
+        "duplicate-id",
+        "module-link",
+        "cache-link",
+        "lock-link",
+        "log-parent-link",
+    ] {
+        let root = TempDir::new();
+        let (adb, module) = legacy_layout(root.path());
+        let cache = seed_legacy_cache(&adb);
+        let mut watched = cache.join(format!("{}.zip", "a".repeat(64)));
+        let want_error = match mode {
+            "wrong-id" | "duplicate-id" => {
+                let props = if mode == "wrong-id" {
+                    b"id=AnotherVPN\n".to_vec()
+                } else {
+                    b"id=MagicNet\nid=MagicNet\n".to_vec()
+                };
+                write_file(&module.join("module.prop"), &props);
+                true
+            }
+            "module-link" => {
+                replace_root_with_symlink(&module);
+                true
+            }
+            "cache-link" => {
+                let target = replace_root_with_symlink(&cache);
+                watched = target.join(format!("{}.zip", "a".repeat(64)));
+                false
+            }
+            "lock-link" => {
+                let lock = cache.join("install.lock");
+                fs::remove_file(&lock).expect("remove lock");
+                std::os::unix::fs::symlink(&watched, &lock).expect("lock symlink");
+                false
+            }
+            "log-parent-link" => {
+                let logs_root = adb.join("cache");
+                write_file(&logs_root.join("MagicNet/kam.log"), b"keep");
+                let target = replace_root_with_symlink(&logs_root);
+                watched = target.join("MagicNet/kam.log");
+                false
+            }
+            _ => unreachable!(),
+        };
+        let result = cleanup_legacy_storage(&module);
+        assert_eq!(
+            result.is_err(),
+            want_error,
+            "mode {mode}: unexpected cleanup result: {:?}",
+            result.map(|()| "ok").map_err(|error| error.message())
+        );
+        assert_legacy_present(&watched, true);
+    }
+}
+
+#[test]
+fn legacy_cleanup_requires_exact_backup_marker_and_dead_owner() {
+    let root = TempDir::new();
+    let (adb, module) = legacy_layout(root.path());
+    let parents = adb.join("modules");
+    let markers: [&[u8]; 4] = [
+        b"",
+        b"magicnet-install-backup-v1",
+        b"magicnet-install-backup-v1\nextra",
+        b"magicnet-install-backup-v1\n\n",
+    ];
+    for (index, marker) in markers.iter().enumerate() {
+        let pid = 2_147_483_646u32 - index as u32;
+        let dir = parents.join(format!("MagicNet.install-backup.{pid}"));
+        write_file(&dir.join(".magicnet-install-backup-v1"), marker);
+    }
+    let active = parents.join(format!("MagicNet.install-backup.{}", std::process::id()));
+    write_file(
+        &active.join(".magicnet-install-backup-v1"),
+        b"magicnet-install-backup-v1\n",
+    );
+    cleanup_legacy_storage(&module).expect("legacy cleanup");
+    let entries: Vec<fs::DirEntry> = fs::read_dir(&parents).expect("read modules").flatten().collect();
+    assert_eq!(entries.len(), 5, "unknown or active backup was changed");
+}
+
+fn seed_legacy_farewell(adb: &Path, suffix: &str) -> PathBuf {
+    let dir = adb.join(format!(".magicnet-farewell.{suffix}"));
+    let worker = concat!(
+        "#!/system/bin/sh\n",
+        "MN_FAREWELL_RUN=",
+        "$",
+        "{0%/*}\n",
+        ". \"$MN_FAREWELL_RUN/uninstall.sh\" || exit 1\n",
+        "magicnet_farewell_worker \"$MN_FAREWELL_RUN\"\n",
+    );
+    write_file(&dir.join("worker.sh"), worker.as_bytes());
+    write_file(&dir.join("httpd.conf"), b"A:127.0.0.1\nD:*\n");
+    let token = "a".repeat(32);
+    write_file(&dir.join("token"), format!("{token}\n").as_bytes());
+    write_file(
+        &dir.join(format!("www/{token}/index.html")),
+        b"<main id=\"farewell\">Goodbye</main>",
+    );
+    dir
+}
+
+#[test]
+fn legacy_cleanup_only_removes_idle_recognized_farewell() {
+    let root = TempDir::new();
+    let (adb, module) = legacy_layout(root.path());
+    let stale = seed_legacy_farewell(&adb, "STALE1");
+    let recent = seed_legacy_farewell(&adb, "RECENT");
+    let unknown = seed_legacy_farewell(&adb, "EXTRA1");
+    write_file(&unknown.join("keep"), b"user file");
+    for dir in [&stale, &unknown] {
+        set_directory_age_past(dir);
+    }
+    cleanup_legacy_storage(&module).expect("legacy cleanup");
+    assert_legacy_present(&stale, false);
+    assert_legacy_present(&recent, true);
+    assert_legacy_present(&unknown, true);
+}
+
+// ---------------------------------------------------------------------------
+// Network resolution boundary (Go: TestAndroidBootstrapDoesNotDependOnLibcDNS)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bootstrap_resolves_nothing_in_process() {
+    // The Go bootstrap installed a pure-Go DNS resolver on Android so the
+    // download path never needed libc name resolution. The Rust port is
+    // stricter: name resolution never happens in this process at all - every
+    // transfer is delegated to an explicitly argv'd curl child whose
+    // environment is cleared. This test pins that boundary.
+    let (component, _) = part("engine", "bin/sing-box", b"payload");
+    let temp = TempDir::new();
+    let archive = archive_fixture(temp.path(), &manifest_fixture(vec![component]), &[]);
+    let fixture = options_fixture(&archive);
+    let installer = Installer::new(&fixture.config);
+    let command = installer.curl_command(
+        "https://example.invalid/asset.zip",
+        None,
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+    );
+    let program = command.get_program().to_string_lossy().to_string();
+    assert!(
+        program == "/system/bin/curl" || program == "/usr/bin/curl",
+        "unexpected curl program: {program}"
+    );
+    let args: Vec<String> = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy().to_string())
+        .collect();
+    assert!(args.iter().any(|arg| arg == "-q"), "curlrc must not be read");
+    assert!(args.windows(2).any(|pair| pair[0] == "--noproxy" && pair[1] == "*"));
+    assert!(args.iter().any(|arg| arg == "--connect-timeout"));
+    assert!(args.iter().any(|arg| arg == "--max-time"));
+    let envs: Vec<_> = command.get_envs().collect();
+    assert_eq!(envs.len(), 2, "only PATH and LC_ALL survive env_clear");
+}

@@ -36,16 +36,6 @@ impl Log {
             Log::Discard => {}
         }
     }
-
-    pub(super) fn text(&self) -> String {
-        match self {
-            Log::Buffer(buffer) => buffer
-                .lock()
-                .map(|buffer| String::from_utf8_lossy(&buffer).into_owned())
-                .unwrap_or_default(),
-            _ => String::new(),
-        }
-    }
 }
 
 /// Go: main.go:340-349 — `humanBytes`.

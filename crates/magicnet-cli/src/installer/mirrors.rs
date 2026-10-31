@@ -24,25 +24,13 @@ use super::http::{BodyReader, Curl, TransferError};
 use super::storage::create_download_temp;
 use super::{Error, Installer, Result};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct RouteHint {
     pub(super) set: bool,
     pub(super) prefix: String,
     pub(super) name: String,
     pub(super) verified_at: Option<Instant>,
     pub(super) sample_size: i64,
-}
-
-impl Default for RouteHint {
-    fn default() -> Self {
-        Self {
-            set: false,
-            prefix: String::new(),
-            name: String::new(),
-            verified_at: None,
-            sample_size: 0,
-        }
-    }
 }
 
 impl RouteHint {
@@ -131,7 +119,7 @@ impl Installer<'_> {
     /// Build one trusted curl invocation. Production only permits HTTPS, for
     /// both the initial URL and every redirect; tests may opt into loopback
     /// HTTP through the private `allow_http` config field.
-    fn curl_command(
+    pub(super) fn curl_command(
         &self,
         url: &str,
         range: Option<(i64, i64)>,
