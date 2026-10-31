@@ -26,13 +26,13 @@ const MAX_CENTRAL_BYTES: u64 = 64 * 1024 * 1024;
 const UNZIP_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Clone, Debug)]
-pub(super) struct ZipEntry {
-    pub(super) name: String,
-    pub(super) is_file: bool,
-    pub(super) size: u64,
+pub struct ZipEntry {
+    pub name: String,
+    pub is_file: bool,
+    pub size: u64,
 }
 
-pub(super) struct ZipArchive {
+pub struct ZipArchive {
     path: PathBuf,
     entries: BTreeMap<String, ZipEntry>,
 }
@@ -63,7 +63,7 @@ fn find_eocd(bytes: &[u8]) -> Option<usize> {
 impl ZipArchive {
     /// Go: main.go:214-229 — `zipIndex`. Directory entries are validated but
     /// not indexed; file names must be safe and unique.
-    pub(super) fn open(path: &Path) -> Result<Self> {
+    pub fn open(path: &Path) -> Result<Self> {
         let file = File::open(path).map_err(Error::from_io)?;
         let file_len = file.metadata().map_err(Error::from_io)?.len();
         if file_len < 22 {
@@ -262,22 +262,22 @@ impl ZipArchive {
         })
     }
 
-    pub(super) fn get(&self, name: &str) -> Option<&ZipEntry> {
+    pub fn get(&self, name: &str) -> Option<&ZipEntry> {
         self.entries.get(name)
     }
 
-    pub(super) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    pub(super) fn has_files(&self, files: &[super::data::PayloadFile]) -> bool {
+    pub fn has_files(&self, files: &[super::data::PayloadFile]) -> bool {
         files
             .iter()
             .all(|file| self.entries.get(&file.path).is_some_and(|entry| entry.is_file))
     }
 
     /// Read a small entry fully into memory (used only for `components.json`).
-    pub(super) fn read_small_entry(&self, name: &str, limit: u64) -> Result<Vec<u8>> {
+    pub fn read_small_entry(&self, name: &str, limit: u64) -> Result<Vec<u8>> {
         let entry = self
             .get(name)
             .filter(|entry| entry.is_file)
@@ -299,7 +299,7 @@ impl ZipArchive {
         Ok(raw)
     }
 
-    pub(super) fn entry_reader(&self, entry: &ZipEntry) -> Result<UnzipReader> {
+    pub fn entry_reader(&self, entry: &ZipEntry) -> Result<UnzipReader> {
         let (program, busybox) = trusted_unzip()
             .ok_or_else(|| Error("no trusted unzip is available".into()))?;
         let mut command = Command::new(program);
@@ -362,7 +362,7 @@ fn trusted_unzip() -> Option<(&'static str, bool)> {
 }
 
 /// Streaming reader over `unzip -p` output for one entry.
-pub(super) struct UnzipReader {
+pub struct UnzipReader {
     child: Child,
     stdout: ChildStdout,
     expected: u64,
@@ -395,7 +395,7 @@ impl UnzipReader {
 
     /// Require the child to have produced exactly the declared entry size and
     /// exited successfully (unzip also validates the entry CRC).
-    pub(super) fn finish(&mut self) -> Result<()> {
+    pub fn finish(&mut self) -> Result<()> {
         if self.count != self.expected {
             let _ = self.child.kill();
             let _ = self.child.wait();

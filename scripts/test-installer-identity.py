@@ -43,8 +43,8 @@ class InstallerTests(unittest.TestCase):
         env = dict(os.environ, GO111MODULE="off", CGO_ENABLED="0")
         env.pop("GOOS", None)
         env.pop("GOARCH", None)
-        subprocess.run(["go", "build", "-trimpath", "-o", str(cls.helper), "./installer/components"],
-                       cwd=ROOT, env=env, check=True)
+        subprocess.run(["cargo", "build", "--release", "-p", "magicnet-components"], cwd=str(ROOT), env=env, check=True)
+        shutil.copy(str(Path(str(ROOT)) / "target/release/magicnet-components"), str(cls.helper))
 
     @classmethod
     def tearDownClass(cls):

@@ -17,10 +17,10 @@
 ```sh
 kam build
 GO111MODULE=off CGO_ENABLED=0 GOOS=android GOARCH=arm64 \
-  go build -trimpath -ldflags='-s -w -buildid=' \
-  -o /tmp/magicnet-components ./installer/components
+  cargo build --release -p magicnet-components --target aarch64-linux-android \
+  --config "target.aarch64-linux-android.linker=\"$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang\""
 python3 scripts/package-components.py dist/MagicNet.zip \
-  --helper /tmp/magicnet-components --output dist \
+  --helper target/aarch64-linux-android/release/magicnet-components --output dist \
   --repository LIghtJUNction/MagicNet
 python3 scripts/test-downloader-installer.py dist/magicnet_installer.zip \
   --core dist/MagicNet-core.zip

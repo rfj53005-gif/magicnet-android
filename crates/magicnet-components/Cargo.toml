@@ -1,0 +1,12 @@
+[package]
+name = "magicnet-components"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone component bootstrap helper carried inside
+# magicnet_installer.zip as bin/magicnet-components. Rust replacement for the
+# Go installer/components binary: identical flag surface, identical error
+# prefix and exit codes; built statically for Android arm64.
+
+[dependencies]
+magicnet-installer = { path = "../magicnet-installer" }

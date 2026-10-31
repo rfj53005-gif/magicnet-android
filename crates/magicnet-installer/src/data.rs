@@ -16,30 +16,30 @@ use super::storage::{dir_name, is_hex_hash, managed_name};
 use super::{Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PayloadFile {
-    pub(super) path: String,
-    pub(super) sha256: String,
-    pub(super) size: i64,
-    pub(super) mode: u32,
+pub struct PayloadFile {
+    pub path: String,
+    pub sha256: String,
+    pub size: i64,
+    pub mode: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Component {
-    pub(super) id: String,
-    pub(super) sha256: String,
-    pub(super) size: i64,
-    pub(super) asset: String,
-    pub(super) files: Vec<PayloadFile>,
+pub struct Component {
+    pub id: String,
+    pub sha256: String,
+    pub size: i64,
+    pub asset: String,
+    pub files: Vec<PayloadFile>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct Manifest {
-    pub(super) schema: i64,
-    pub(super) module: String,
-    pub(super) version: String,
-    pub(super) architecture: String,
-    pub(super) repository: String,
-    pub(super) components: Vec<Component>,
+pub struct Manifest {
+    pub schema: i64,
+    pub module: String,
+    pub version: String,
+    pub architecture: String,
+    pub repository: String,
+    pub components: Vec<Component>,
 }
 
 fn string_at<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
@@ -99,7 +99,7 @@ fn component_id_ok(value: &str) -> bool {
 }
 
 /// Go: runtime.GOARCH names, which the packager writes ("arm64", "amd64").
-pub(super) fn compiled_architecture() -> &'static str {
+pub fn compiled_architecture() -> &'static str {
     match std::env::consts::ARCH {
         "aarch64" => "arm64",
         "x86_64" => "amd64",
@@ -110,7 +110,7 @@ pub(super) fn compiled_architecture() -> &'static str {
 
 impl Manifest {
     /// Go: main.go:99-134 — `manifest.validate`.
-    pub(super) fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> Result<()> {
         if self.schema != 1
             || self.module != "MagicNet"
             || !release_version_ok(&self.version)
@@ -175,7 +175,7 @@ impl Manifest {
     }
 
     /// Go: main.go:695-700 — `json.Unmarshal` into the typed struct.
-    pub(super) fn parse(raw: &[u8]) -> Result<Self> {
+    pub fn parse(raw: &[u8]) -> Result<Self> {
         let value: Value =
             serde_json::from_slice(raw).map_err(|error| Error(format!("invalid manifest: {error}")))?;
         if !value.is_object() {
@@ -223,7 +223,7 @@ impl Manifest {
 
 /// Go: main.go:704-707 — an unreadable or malformed previous manifest simply
 /// means "no obsolete files are known"; it never fails the install.
-pub(super) fn old_managed_files(raw: &[u8]) -> Vec<String> {
+pub fn old_managed_files(raw: &[u8]) -> Vec<String> {
     let Ok(value) = serde_json::from_slice::<Value>(raw) else {
         return Vec::new();
     };

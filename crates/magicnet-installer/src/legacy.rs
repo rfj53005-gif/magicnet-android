@@ -360,7 +360,7 @@ fn farewell_walk(root: &Path, allowed: &std::collections::HashSet<String>) -> bo
 }
 
 /// Go: legacy_cleanup.go:235-267 — `cleanupLegacyStorage`.
-pub(super) fn cleanup_legacy_storage(module_dir: &Path) -> Result<()> {
+pub fn cleanup_legacy_storage(module_dir: &Path) -> Result<()> {
     let module_dir = clean_path(module_dir);
     let parent = module_dir.parent().unwrap_or(Path::new("/"));
     if !module_dir.is_absolute()

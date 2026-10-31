@@ -58,6 +58,23 @@ have notes.
 3. Logging: Go printed to stdout; Rust keeps the same line format but routes
    through the CLI log writer for --json consistency.
 
+
+## Build chain integration (2026-10-31)
+
+- installer code split into workspace crate `crates/magicnet-installer` (lib) used by
+  `magicnet-cli installer …` (control plane) and `crates/magicnet-components` (the
+  standalone `bin/magicnet-components` helper carried inside `magicnet_installer.zip`,
+  Go flag-surface compatible: `--archive/--module-dir/--previous-dir/--cache-dir/--offline/--cleanup-legacy`,
+  `[error] …` + exit codes unchanged).
+- `scripts/test-components.py` and `scripts/test-installer-identity.py` now build the
+  helper with `cargo build --release -p magicnet-components` (host): 17/17 and 11/11
+  (1 env-skip) passed with the Rust helper driving the real packager + manager lifecycle.
+- Android arm64 helper: `cargo build --release -p magicnet-components --target
+  aarch64-linux-android` with the pinned NDK r29 clang linker (see installer/README.md).
+- fake-magisk-smoke + package-smoke + orchestrator smoke pass against the pilot CLI
+  (host sing-box CLI rebuilt from the fork with release tags/LDFLAGS; the desktop
+  Electron `/usr/local/bin/sing-box` shadow is a host-environment trap, not repo state).
+
 ## Validation state (2026-10-31)
 
 - `cargo test -p magicnet-cli`: 805 passed / 0 failed (bin), installer:: 54/54,

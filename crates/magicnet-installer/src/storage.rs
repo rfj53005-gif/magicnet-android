@@ -25,7 +25,7 @@ use super::{Error, Result};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-pub(super) fn sha256_hex(bytes: &[u8]) -> String {
+pub fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let digest = hasher.finalize();
@@ -36,7 +36,7 @@ pub(super) fn sha256_hex(bytes: &[u8]) -> String {
     out
 }
 
-pub(super) fn is_hex_hash(value: &str) -> bool {
+pub fn is_hex_hash(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
@@ -72,7 +72,7 @@ fn go_path_clean(name: &str) -> String {
 }
 
 /// Go: main.go:80-84 — `safeName`.
-pub(super) fn safe_name(name: &str) -> bool {
+pub fn safe_name(name: &str) -> bool {
     !name.is_empty()
         && go_path_clean(name) == name
         && !name.starts_with('/')
@@ -85,7 +85,7 @@ pub(super) fn safe_name(name: &str) -> bool {
 }
 
 /// Go: main.go:85-98 — `managedName`.
-pub(super) fn managed_name(name: &str) -> bool {
+pub fn managed_name(name: &str) -> bool {
     if !safe_name(name) {
         return false;
     }
@@ -100,7 +100,7 @@ pub(super) fn managed_name(name: &str) -> bool {
 }
 
 /// Go: `path.Dir`.
-pub(super) fn dir_name(name: &str) -> String {
+pub fn dir_name(name: &str) -> String {
     match name.rsplit_once('/') {
         Some((parent, _)) if !parent.is_empty() => parent.to_string(),
         Some(_) => "/".to_string(),
@@ -110,7 +110,7 @@ pub(super) fn dir_name(name: &str) -> String {
 
 /// Go: `filepath.Clean` for host paths (lexical only, never resolves
 /// symlinks).
-pub(super) fn clean_path(path: &Path) -> PathBuf {
+pub fn clean_path(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {
@@ -132,7 +132,7 @@ pub(super) fn clean_path(path: &Path) -> PathBuf {
 }
 
 /// Go: `filepath.Clean` for host paths, then make it absolute.
-pub(super) fn lexical_absolute(path: &Path) -> io::Result<PathBuf> {
+pub fn lexical_absolute(path: &Path) -> io::Result<PathBuf> {
     let joined = if path.is_absolute() {
         path.to_path_buf()
     } else {
@@ -143,7 +143,7 @@ pub(super) fn lexical_absolute(path: &Path) -> io::Result<PathBuf> {
 
 /// Go: main.go:136-158 — validate every existing path component. No
 /// extraction, copy, or removal follows an installation-owned symlink.
-pub(super) fn physical(name: &Path, allow_missing: bool) -> Result<()> {
+pub fn physical(name: &Path, allow_missing: bool) -> Result<()> {
     let absolute = lexical_absolute(name).map_err(Error::from_io)?;
     let mut current = PathBuf::from("/");
     for part in absolute.components().skip(1) {
@@ -162,7 +162,7 @@ pub(super) fn physical(name: &Path, allow_missing: bool) -> Result<()> {
 }
 
 /// Go: main.go:159-171 — `regular`.
-pub(super) fn regular(name: &Path) -> Result<fs::Metadata> {
+pub fn regular(name: &Path) -> Result<fs::Metadata> {
     physical(name, false)?;
     let meta = fs::symlink_metadata(name).map_err(Error::from_io)?;
     if !meta.is_file() {
@@ -171,7 +171,7 @@ pub(super) fn regular(name: &Path) -> Result<fs::Metadata> {
     Ok(meta)
 }
 
-pub(super) fn open_no_follow(name: &Path) -> io::Result<File> {
+pub fn open_no_follow(name: &Path) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -179,7 +179,7 @@ pub(super) fn open_no_follow(name: &Path) -> io::Result<File> {
 }
 
 /// Go: main.go:172-188 — `validFile`.
-pub(super) fn valid_file(name: &Path, size: i64, digest: &str) -> bool {
+pub fn valid_file(name: &Path, size: i64, digest: &str) -> bool {
     if size < 0 || regular(name).is_err() {
         return false;
     }
@@ -212,7 +212,7 @@ pub(super) fn valid_file(name: &Path, size: i64, digest: &str) -> bool {
     read_total == size as u64 && hex_digest(&hasher) == digest
 }
 
-pub(super) fn hex_digest(hasher: &Sha256) -> String {
+pub fn hex_digest(hasher: &Sha256) -> String {
     let digest = hasher.clone().finalize();
     let mut out = String::with_capacity(64);
     for byte in digest {
@@ -224,7 +224,7 @@ pub(super) fn hex_digest(hasher: &Sha256) -> String {
 /// Go: main.go:189-213 — `copyVerified`. Creates the destination with O_EXCL
 /// 0600, hashes while copying, rejects a size/hash mismatch, and applies the
 /// manifest mode only after verification.
-pub(super) fn copy_verified<R: Read>(reader: R, target: &Path, file: &super::data::PayloadFile) -> Result<()> {
+pub fn copy_verified<R: Read>(reader: R, target: &Path, file: &super::data::PayloadFile) -> Result<()> {
     if let Some(parent) = target.parent() {
         create_dir_all_mode(parent, 0o755)?;
     }
@@ -265,7 +265,7 @@ pub(super) fn copy_verified<R: Read>(reader: R, target: &Path, file: &super::dat
 }
 
 /// Go: storage.go:41-55 — bounded read of a regular file.
-pub(super) fn read_bounded(name: &Path, limit: u64) -> Result<Vec<u8>> {
+pub fn read_bounded(name: &Path, limit: u64) -> Result<Vec<u8>> {
     regular(name)?;
     let mut file = open_no_follow(name).map_err(Error::from_io)?;
     let mut raw = Vec::new();
@@ -282,7 +282,7 @@ pub(super) fn read_bounded(name: &Path, limit: u64) -> Result<Vec<u8>> {
     Ok(raw)
 }
 
-pub(super) fn create_dir_all_mode(path: &Path, mode: u32) -> Result<()> {
+pub fn create_dir_all_mode(path: &Path, mode: u32) -> Result<()> {
     if path.as_os_str().is_empty() {
         return Ok(());
     }
@@ -303,7 +303,7 @@ pub(super) fn create_dir_all_mode(path: &Path, mode: u32) -> Result<()> {
 /// transient copy while preserving the reject-concurrent-install contract:
 /// a real competing installer holds the lock for the whole run and still
 /// produces the same error.
-pub(super) fn lock_module(root: &Path) -> Result<File> {
+pub fn lock_module(root: &Path) -> Result<File> {
     physical(root, true)?;
     create_dir_all_mode(root, 0o700)?;
     let lock = File::open(root).map_err(Error::from_io)?;
@@ -330,7 +330,7 @@ pub(super) fn lock_module(root: &Path) -> Result<File> {
 }
 
 /// Go: storage.go:59-90 — `prepareWorkspace`.
-pub(super) fn prepare_workspace(root: &Path) -> Result<PathBuf> {
+pub fn prepare_workspace(root: &Path) -> Result<PathBuf> {
     let stage = root.join(WORKSPACE_NAME);
     physical(&stage, true)?;
     match fs::read_dir(&stage) {
@@ -377,7 +377,7 @@ pub(super) fn prepare_workspace(root: &Path) -> Result<PathBuf> {
 
 /// `os.RemoveAll` semantics for one workspace entry: a regular file, symlink
 /// or directory is removed without following symlinks.
-pub(super) fn remove_any(path: &Path) -> Result<()> {
+pub fn remove_any(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.is_dir() => fs::remove_dir_all(path).map_err(Error::from_io),
         Ok(_) => fs::remove_file(path).map_err(Error::from_io),
@@ -387,7 +387,7 @@ pub(super) fn remove_any(path: &Path) -> Result<()> {
 }
 
 /// Go: storage.go:94-110 — remove the ownership marker last.
-pub(super) fn cleanup_workspace(stage: &Path) -> Result<()> {
+pub fn cleanup_workspace(stage: &Path) -> Result<()> {
     let entries = fs::read_dir(stage).map_err(Error::from_io)?;
     for entry in entries {
         let entry = entry.map_err(Error::from_io)?;
@@ -404,16 +404,16 @@ pub(super) fn cleanup_workspace(stage: &Path) -> Result<()> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PromotionChange {
-    pub(super) path: String,
-    pub(super) existed: bool,
-    pub(super) install: bool,
+pub struct PromotionChange {
+    pub path: String,
+    pub existed: bool,
+    pub install: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PromotionJournal {
-    pub(super) schema: i64,
-    pub(super) changes: Vec<PromotionChange>,
+pub struct PromotionJournal {
+    pub schema: i64,
+    pub changes: Vec<PromotionChange>,
 }
 
 impl PromotionJournal {
@@ -490,7 +490,7 @@ impl PromotionJournal {
 
 /// Go: storage.go:147-199 — `preparePromotion`: finish validation and write
 /// the complete plan before any old file moves.
-pub(super) fn prepare_promotion(
+pub fn prepare_promotion(
     stage: &Path,
     root: &Path,
     files: &[super::data::PayloadFile],
@@ -557,7 +557,7 @@ pub(super) fn prepare_promotion(
 }
 
 /// Go: storage.go:201-223 — `promote`.
-pub(super) fn promote(
+pub fn promote(
     stage: &Path,
     root: &Path,
     files: &[super::data::PayloadFile],
@@ -579,7 +579,7 @@ pub(super) fn promote(
 
 /// Go: storage.go:228-284 — `recoverPromotion`. Recovery is repeatable if it
 /// is interrupted itself: a backup is consumed only by the atomic rename back.
-pub(super) fn recover_promotion(stage: &Path, root: &Path) -> Result<()> {
+pub fn recover_promotion(stage: &Path, root: &Path) -> Result<()> {
     let journal_path = stage.join(PROMOTION_FILE);
     match fs::symlink_metadata(&journal_path) {
         Ok(_) => {}
@@ -650,7 +650,7 @@ pub(super) fn recover_promotion(stage: &Path, root: &Path) -> Result<()> {
 }
 
 /// Go: storage.go:286-294 — `pruneEmptyParents`.
-pub(super) fn prune_empty_parents(root: &Path, obsolete: &[String]) {
+pub fn prune_empty_parents(root: &Path, obsolete: &[String]) {
     for name in obsolete {
         let mut parent = dir_name(name);
         while managed_name(&parent) {
@@ -662,14 +662,14 @@ pub(super) fn prune_empty_parents(root: &Path, obsolete: &[String]) {
     }
 }
 
-pub(super) struct TempDownload {
-    pub(super) file: File,
-    pub(super) path: PathBuf,
+pub struct TempDownload {
+    pub file: File,
+    pub path: PathBuf,
 }
 
 impl TempDownload {
     /// Keep the file after it has been atomically renamed to its destination.
-    pub(super) fn disarm(&mut self) {
+    pub fn disarm(&mut self) {
         self.path = PathBuf::new();
     }
 }
@@ -681,7 +681,7 @@ impl Drop for TempDownload {
 }
 
 /// Go: main.go:434 — `os.CreateTemp(filepath.Dir(destination), ".download-")`.
-pub(super) fn create_download_temp(directory: &Path) -> Result<TempDownload> {
+pub fn create_download_temp(directory: &Path) -> Result<TempDownload> {
     for _ in 0..128 {
         let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
         let stamp = std::time::SystemTime::now()

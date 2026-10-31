@@ -24,7 +24,7 @@ use super::constants::{MAX_HEADER_BYTES, SLOW_FLOOR_BYTES_PER_SEC, SLOW_REMAININ
 use super::Error;
 
 #[derive(Debug)]
-pub(super) enum TransferError {
+pub enum TransferError {
     /// The soft speed floor rejected an otherwise progressing transfer.
     Slow,
     /// No bytes arrived within the resetting idle deadline.
@@ -36,7 +36,7 @@ pub(super) enum TransferError {
 }
 
 impl TransferError {
-    pub(super) fn message(&self) -> String {
+    pub fn message(&self) -> String {
         match self {
             TransferError::Slow => "sustained download speed below 128 KiB/s".to_string(),
             TransferError::Idle => "download stalled past the idle deadline".to_string(),
@@ -52,26 +52,26 @@ impl From<TransferError> for Error {
     }
 }
 
-pub(super) struct Headers {
-    pub(super) status: u16,
+pub struct Headers {
+    pub status: u16,
     fields: Vec<(String, String)>,
 }
 
 impl Headers {
-    pub(super) fn get(&self, name: &str) -> Option<&str> {
+    pub fn get(&self, name: &str) -> Option<&str> {
         self.fields
             .iter()
             .find(|(field, _)| field == name)
             .map(|(_, value)| value.as_str())
     }
 
-    pub(super) fn content_length(&self) -> Option<i64> {
+    pub fn content_length(&self) -> Option<i64> {
         self.get("content-length")
             .and_then(|value| value.trim().parse::<i64>().ok())
     }
 }
 
-pub(super) struct Curl {
+pub struct Curl {
     child: Child,
     stdout: ChildStdout,
     stderr: Option<JoinHandle<Vec<u8>>>,
@@ -81,7 +81,7 @@ pub(super) struct Curl {
 }
 
 impl Curl {
-    pub(super) fn spawn(mut command: Command) -> super::Result<Self> {
+    pub fn spawn(mut command: Command) -> super::Result<Self> {
         command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -132,7 +132,7 @@ impl Curl {
 
     /// One chunk from the child, bounded by `deadline`. Pending bytes from the
     /// header read are served first.
-    pub(super) fn read_chunk(&mut self, buffer: &mut [u8], deadline: Instant) -> std::result::Result<usize, TransferError> {
+    pub fn read_chunk(&mut self, buffer: &mut [u8], deadline: Instant) -> std::result::Result<usize, TransferError> {
         if buffer.is_empty() {
             return Ok(0);
         }
@@ -165,7 +165,7 @@ impl Curl {
     /// Drain bytes that are already buffered in the pipe (or in our header
     /// pending buffer) without waiting. Used after a probe deadline so bytes
     /// delivered before the kill still count as a measured sample.
-    pub(super) fn read_available(&mut self, buffer: &mut [u8]) -> io::Result<Option<usize>> {
+    pub fn read_available(&mut self, buffer: &mut [u8]) -> io::Result<Option<usize>> {
         if buffer.is_empty() {
             return Ok(Some(0));
         }
@@ -184,7 +184,7 @@ impl Curl {
     /// Go: `http.Response` parsing. curl follows redirects itself
     /// (`--location --max-redirs 10 --proto-redir =https`), and `--include`
     /// emits every response block; intermediate 1xx/3xx blocks are skipped.
-    pub(super) fn read_headers(&mut self, deadline: Instant) -> std::result::Result<Headers, TransferError> {
+    pub fn read_headers(&mut self, deadline: Instant) -> std::result::Result<Headers, TransferError> {
         'blocks: loop {
             let mut collected = Vec::new();
             let mut scan_from = 0usize;
@@ -241,19 +241,19 @@ impl Curl {
     }
 
     /// Drain stderr and reap the child.
-    pub(super) fn wait(&mut self) -> super::Result<ExitStatus> {
+    pub fn wait(&mut self) -> super::Result<ExitStatus> {
         self.reaped = true;
         let status = self.child.wait().map_err(Error::from_io);
         self.collect_stderr();
         status
     }
 
-    pub(super) fn stderr_text(&self) -> String {
+    pub fn stderr_text(&self) -> String {
         self.stderr_output.clone().unwrap_or_default()
     }
 
     /// Kill the child, reap it, and return whatever curl printed on stderr.
-    pub(super) fn abort_with_stderr(&mut self) -> String {
+    pub fn abort_with_stderr(&mut self) -> String {
         let _ = self.child.kill();
         self.reaped = true;
         let _ = self.child.wait();
@@ -309,20 +309,20 @@ fn parse_headers(block: &[u8]) -> std::result::Result<Headers, TransferError> {
 
 /// Go: main.go:377-409 — `activityReader`. Reads body bytes, enforcing the
 /// resettable idle deadline and the optional sliding speed window.
-pub(super) struct BodyReader<'a> {
+pub struct BodyReader<'a> {
     curl: &'a mut Curl,
     idle: Duration,
     window: Duration,
     deadline: Instant,
     window_start: Instant,
     window_bytes: i64,
-    pub(super) received: i64,
+    pub received: i64,
     total: i64,
     slow: bool,
 }
 
 impl<'a> BodyReader<'a> {
-    pub(super) fn new(
+    pub fn new(
         curl: &'a mut Curl,
         idle: Duration,
         window: Duration,
@@ -342,11 +342,11 @@ impl<'a> BodyReader<'a> {
         }
     }
 
-    pub(super) fn take_slow(&mut self) -> bool {
+    pub fn take_slow(&mut self) -> bool {
         std::mem::take(&mut self.slow)
     }
 
-    pub(super) fn read(&mut self, buffer: &mut [u8]) -> std::result::Result<usize, TransferError> {
+    pub fn read(&mut self, buffer: &mut [u8]) -> std::result::Result<usize, TransferError> {
         if self.slow {
             return Err(TransferError::Slow);
         }

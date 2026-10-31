@@ -1,0 +1,17 @@
+[package]
+name = "magicnet-installer"
+version = "0.1.0"
+edition = "2021"
+
+# Semantic port of installer/components (Go): release-pinned payload
+# verification, mirror routing, parallel transfers, atomic promotion,
+# rollback and legacy cleanup. Shared by magicnet-cli (control plane) and
+# magicnet-components (standalone bootstrap helper inside the installer
+# ZIP). Filesystem layout and state files are byte-compatible with the Go
+# helper so either implementation can finish the other's interrupted
+# transaction.
+
+[dependencies]
+libc = "0.2"
+serde_json = "1"
+sha2 = "0.10"

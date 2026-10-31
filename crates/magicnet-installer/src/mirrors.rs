@@ -25,17 +25,17 @@ use super::storage::create_download_temp;
 use super::{Error, Installer, Result};
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct RouteHint {
-    pub(super) set: bool,
-    pub(super) prefix: String,
-    pub(super) name: String,
-    pub(super) verified_at: Option<Instant>,
-    pub(super) sample_size: i64,
+pub struct RouteHint {
+    pub set: bool,
+    pub prefix: String,
+    pub name: String,
+    pub verified_at: Option<Instant>,
+    pub sample_size: i64,
 }
 
 impl RouteHint {
     /// Go: mirrors.go:43-53 — `routeHint.usable`.
-    pub(super) fn usable(&self, component: &Component) -> bool {
+    pub fn usable(&self, component: &Component) -> bool {
         if !self.set {
             return false;
         }
@@ -51,15 +51,15 @@ impl RouteHint {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct Route {
-    pub(super) url: String,
-    pub(super) name: String,
-    pub(super) prefix: String,
-    pub(super) speed: f64,
-    pub(super) bytes: i64,
-    pub(super) elapsed: Duration,
-    pub(super) reason: String,
-    pub(super) retryable: bool,
+pub struct Route {
+    pub url: String,
+    pub name: String,
+    pub prefix: String,
+    pub speed: f64,
+    pub bytes: i64,
+    pub elapsed: Duration,
+    pub reason: String,
+    pub retryable: bool,
 }
 
 /// Go: mirrors.go:64-76 — `routeName`.
@@ -76,10 +76,10 @@ fn route_name(prefix: &str) -> String {
     }
 }
 
-pub(super) struct DownloadJob {
-    pub(super) component: Component,
-    pub(super) direct: String,
-    pub(super) destination: PathBuf,
+pub struct DownloadJob {
+    pub component: Component,
+    pub direct: String,
+    pub destination: PathBuf,
 }
 
 fn seconds(value: Duration) -> String {
@@ -119,7 +119,7 @@ impl Installer<'_> {
     /// Build one trusted curl invocation. Production only permits HTTPS, for
     /// both the initial URL and every redirect; tests may opt into loopback
     /// HTTP through the private `allow_http` config field.
-    pub(super) fn curl_command(
+    pub fn curl_command(
         &self,
         url: &str,
         range: Option<(i64, i64)>,
@@ -163,7 +163,7 @@ impl Installer<'_> {
         command
     }
 
-    pub(super) fn cached_route(&self, component: &Component, direct: &str) -> Option<Route> {
+    pub fn cached_route(&self, component: &Component, direct: &str) -> Option<Route> {
         let hint = self.route.lock().ok()?;
         if !hint.usable(component) {
             return None;
@@ -213,7 +213,7 @@ impl Installer<'_> {
     }
 
     /// Go: mirrors.go:78-159 — `probe`.
-    pub(super) fn probe(&self, component: &Component, raw_url: &str, name: &str, prefix: &str) -> Route {
+    pub fn probe(&self, component: &Component, raw_url: &str, name: &str, prefix: &str) -> Route {
         let started = Instant::now();
         let (bytes, speed, reason, retryable) = self.probe_sample(component, raw_url, started);
         Route {
@@ -373,7 +373,7 @@ impl Installer<'_> {
         (received, received as f64 / elapsed, String::new(), false)
     }
 
-    pub(super) fn report_route(&self, route: &Route) {
+    pub fn report_route(&self, route: &Route) {
         if !route.reason.is_empty() {
             self.cfg
                 .log
@@ -390,7 +390,7 @@ impl Installer<'_> {
     }
 
     /// Go: mirrors.go:169-190 — `routeCandidates`.
-    pub(super) fn route_candidates(&self, direct: &str, attempted: &HashSet<String>) -> Vec<Route> {
+    pub fn route_candidates(&self, direct: &str, attempted: &HashSet<String>) -> Vec<Route> {
         let mut seen = HashSet::new();
         let mut candidates = Vec::new();
         let mut prefixes: Vec<&str> = vec![""];
@@ -424,7 +424,7 @@ impl Installer<'_> {
 
     /// Go: mirrors.go:192-224 — `rankRoutes`. Probe at most four mirrors in
     /// parallel, log from the collecting thread, and rank deterministically.
-    pub(super) fn rank_routes(
+    pub fn rank_routes(
         &self,
         component: &Component,
         direct: &str,
@@ -464,7 +464,7 @@ impl Installer<'_> {
     }
 
     /// Go: mirrors.go:239-250 — `routes`.
-    pub(super) fn routes(&self, component: &Component, direct: &str) -> Vec<Route> {
+    pub fn routes(&self, component: &Component, direct: &str) -> Vec<Route> {
         let first = self.probe(component, direct, "GitHub", "");
         self.report_route(&first);
         if first.bytes >= FAST_DIRECT_BYTES && first.speed >= FAST_DIRECT_SPEED {
@@ -482,7 +482,7 @@ impl Installer<'_> {
     }
 
     /// Go: main.go:512-582 — `download`.
-    pub(super) fn download(
+    pub fn download(
         &self,
         component: &Component,
         direct: &str,
@@ -573,7 +573,7 @@ impl Installer<'_> {
         )))
     }
 
-    pub(super) fn download_attempt(
+    pub fn download_attempt(
         &self,
         component: &Component,
         url: &str,
@@ -702,7 +702,7 @@ impl Installer<'_> {
     }
 
     /// Go: main.go:590-627 — at most three component transfers in flight.
-    pub(super) fn download_components(&self, items: Vec<DownloadJob>) -> Result<()> {
+    pub fn download_components(&self, items: Vec<DownloadJob>) -> Result<()> {
         if items.is_empty() {
             return Ok(());
         }
@@ -749,7 +749,7 @@ impl Installer<'_> {
 
 /// Go: mirrors.go:226-237 — keep measured routes and retryable unknown
 /// throughput, stable-sorted fastest first.
-pub(super) fn ranked_download_routes(candidates: Vec<Route>) -> Vec<Route> {
+pub fn ranked_download_routes(candidates: Vec<Route>) -> Vec<Route> {
     let mut results: Vec<Route> = candidates
         .into_iter()
         .filter(|route| route.speed > 0.0 || route.retryable)
@@ -780,6 +780,6 @@ fn sha256_hex_from(hasher: &Sha256) -> String {
     out
 }
 
-pub(super) fn default_mirrors() -> Vec<String> {
+pub fn default_mirrors() -> Vec<String> {
     DEFAULT_MIRRORS.iter().map(|value| value.to_string()).collect()
 }

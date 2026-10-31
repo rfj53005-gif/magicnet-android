@@ -12,14 +12,14 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone)]
 #[allow(dead_code)] // the buffer sink is used by tests
-pub(super) enum Log {
+pub enum Log {
     Stdout,
     Buffer(Arc<Mutex<Vec<u8>>>),
     Discard,
 }
 
 impl Log {
-    pub(super) fn line(&self, arguments: fmt::Arguments<'_>) {
+    pub fn line(&self, arguments: fmt::Arguments<'_>) {
         let mut text = arguments.to_string();
         text.push('\n');
         match self {
@@ -39,7 +39,7 @@ impl Log {
 }
 
 /// Go: main.go:340-349 — `humanBytes`.
-pub(super) fn human_bytes(n: i64) -> String {
+pub fn human_bytes(n: i64) -> String {
     if n >= 1 << 20 {
         format!("{:.1} MiB", n as f64 / (1 << 20) as f64)
     } else if n >= 1 << 10 {
@@ -69,9 +69,9 @@ fn go_duration(seconds: u64) -> String {
 }
 
 /// Go: main.go:351-375 — one progress line per second and at completion.
-pub(super) struct Progress<'a> {
-    pub(super) current: i64,
-    pub(super) total: i64,
+pub struct Progress<'a> {
+    pub current: i64,
+    pub total: i64,
     last: Option<Instant>,
     start: Option<Instant>,
     log: &'a Log,
@@ -79,7 +79,7 @@ pub(super) struct Progress<'a> {
 }
 
 impl<'a> Progress<'a> {
-    pub(super) fn new(total: i64, log: &'a Log, id: &'a str) -> Self {
+    pub fn new(total: i64, log: &'a Log, id: &'a str) -> Self {
         Self {
             current: 0,
             total,
@@ -90,7 +90,7 @@ impl<'a> Progress<'a> {
         }
     }
 
-    pub(super) fn write(&mut self, count: i64) {
+    pub fn write(&mut self, count: i64) {
         if self.start.is_none() {
             self.start = Some(Instant::now());
         }

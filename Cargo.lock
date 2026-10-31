@@ -176,7 +176,24 @@ dependencies = [
  "base64",
  "chacha20poly1305",
  "libc",
+ "magicnet-installer",
  "md5",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "magicnet-components"
+version = "0.1.0"
+dependencies = [
+ "magicnet-installer",
+]
+
+[[package]]
+name = "magicnet-installer"
+version = "0.1.0"
+dependencies = [
+ "libc",
  "serde_json",
  "sha2",
 ]

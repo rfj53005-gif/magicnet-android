@@ -27,12 +27,12 @@ use super::{Config, Installer, Result};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-pub(super) struct TempDir {
+pub struct TempDir {
     path: PathBuf,
 }
 
 impl TempDir {
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -46,11 +46,11 @@ impl TempDir {
         Self { path }
     }
 
-    pub(super) fn path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    pub(super) fn join(&self, name: &str) -> PathBuf {
+    pub fn join(&self, name: &str) -> PathBuf {
         self.path.join(name)
     }
 }
@@ -61,19 +61,19 @@ impl Drop for TempDir {
     }
 }
 
-pub(super) fn write_file(path: &Path, value: &[u8]) {
+pub fn write_file(path: &Path, value: &[u8]) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("create fixture parent");
     }
     fs::write(path, value).expect("write fixture");
 }
 
-pub(super) fn assert_content(path: &Path, value: &[u8]) {
+pub fn assert_content(path: &Path, value: &[u8]) {
     let got = fs::read(path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     assert_eq!(got, value, "unexpected content at {}", path.display());
 }
 
-pub(super) fn assert_absent(path: &Path) {
+pub fn assert_absent(path: &Path) {
     assert!(
         fs::symlink_metadata(path).is_err(),
         "unexpected path: {}",
@@ -81,7 +81,7 @@ pub(super) fn assert_absent(path: &Path) {
     );
 }
 
-pub(super) fn assert_no_workspace(root: &Path) {
+pub fn assert_no_workspace(root: &Path) {
     assert!(
         fs::symlink_metadata(&root.join(WORKSPACE_NAME)).is_err(),
         "component workspace remains at {}",
@@ -101,18 +101,18 @@ pub(super) fn assert_no_workspace(root: &Path) {
     }
 }
 
-pub(super) fn log_buffer() -> (Log, Arc<Mutex<Vec<u8>>>) {
+pub fn log_buffer() -> (Log, Arc<Mutex<Vec<u8>>>) {
     let buffer = Arc::new(Mutex::new(Vec::new()));
     (Log::Buffer(buffer.clone()), buffer)
 }
 
-pub(super) struct Fixture {
-    pub(super) root: TempDir,
-    pub(super) config: Config,
-    pub(super) log: Arc<Mutex<Vec<u8>>>,
+pub struct Fixture {
+    pub root: TempDir,
+    pub config: Config,
+    pub log: Arc<Mutex<Vec<u8>>>,
 }
 
-pub(super) fn options_fixture(archive: &Path) -> Fixture {
+pub fn options_fixture(archive: &Path) -> Fixture {
     let root = TempDir::new();
     let (log, buffer) = log_buffer();
     let config = Config {
@@ -138,11 +138,11 @@ pub(super) fn options_fixture(archive: &Path) -> Fixture {
     }
 }
 
-pub(super) fn install(fixture: &Fixture) -> Result<()> {
+pub fn install(fixture: &Fixture) -> Result<()> {
     Installer::new(&fixture.config).run()
 }
 
-pub(super) fn manifest_fixture(parts: Vec<Component>) -> Manifest {
+pub fn manifest_fixture(parts: Vec<Component>) -> Manifest {
     Manifest {
         schema: 1,
         module: "MagicNet".into(),
@@ -153,7 +153,7 @@ pub(super) fn manifest_fixture(parts: Vec<Component>) -> Manifest {
     }
 }
 
-pub(super) fn manifest_json(manifest: &Manifest) -> Vec<u8> {
+pub fn manifest_json(manifest: &Manifest) -> Vec<u8> {
     let components: Vec<_> = manifest
         .components
         .iter()
@@ -206,7 +206,7 @@ fn crc32(data: &[u8]) -> u32 {
 }
 
 /// Minimal stored-entry ZIP writer used only by tests.
-pub(super) fn zip_files(files: &[(String, Vec<u8>, u32)]) -> Vec<u8> {
+pub fn zip_files(files: &[(String, Vec<u8>, u32)]) -> Vec<u8> {
     let mut out = Vec::new();
     let mut central = Vec::new();
     for (name, data, mode) in files {
@@ -260,7 +260,7 @@ pub(super) fn zip_files(files: &[(String, Vec<u8>, u32)]) -> Vec<u8> {
     out
 }
 
-pub(super) fn zip_regular(files: &[(&str, &[u8])]) -> Vec<u8> {
+pub fn zip_regular(files: &[(&str, &[u8])]) -> Vec<u8> {
     let owned: Vec<(String, Vec<u8>, u32)> = files
         .iter()
         .map(|(name, data)| (name.to_string(), data.to_vec(), 0o644))
@@ -268,7 +268,7 @@ pub(super) fn zip_regular(files: &[(&str, &[u8])]) -> Vec<u8> {
     zip_files(&owned)
 }
 
-pub(super) fn part(id: &str, name: &str, value: &[u8]) -> (Component, Vec<u8>) {
+pub fn part(id: &str, name: &str, value: &[u8]) -> (Component, Vec<u8>) {
     let payload = zip_regular(&[(name, value)]);
     let sha = sha256_hex(&payload);
     let component = Component {
@@ -286,7 +286,7 @@ pub(super) fn part(id: &str, name: &str, value: &[u8]) -> (Component, Vec<u8>) {
     (component, payload)
 }
 
-pub(super) fn archive_fixture(root: &Path, manifest: &Manifest, bundled: &[(&str, &[u8])]) -> PathBuf {
+pub fn archive_fixture(root: &Path, manifest: &Manifest, bundled: &[(&str, &[u8])]) -> PathBuf {
     let raw = manifest_json(manifest);
     let mut files: Vec<(String, Vec<u8>, u32)> = vec![("components.json".into(), raw, 0o644)];
     for (name, data) in bundled {
@@ -301,31 +301,31 @@ pub(super) fn archive_fixture(root: &Path, manifest: &Manifest, bundled: &[(&str
 // Loopback HTTP fixture
 // ---------------------------------------------------------------------------
 
-pub(super) struct Request {
+pub struct Request {
     // Recorded by the parser for fidelity with Go's request
     // fixture; only the path drives routing decisions in these tests.
     #[allow(dead_code)]
-    pub(super) method: String,
-    pub(super) path: String,
-    pub(super) headers: HashMap<String, String>,
+    pub method: String,
+    pub path: String,
+    pub headers: HashMap<String, String>,
 }
 
 impl Request {
-    pub(super) fn header(&self, name: &str) -> Option<&str> {
+    pub fn header(&self, name: &str) -> Option<&str> {
         self.headers.get(name).map(String::as_str)
     }
 }
 
 type Handler = Arc<dyn Fn(Request, TcpStream) + Send + Sync>;
 
-pub(super) struct TestServer {
+pub struct TestServer {
     addr: String,
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
 
 impl TestServer {
-    pub(super) fn url(&self) -> String {
+    pub fn url(&self) -> String {
         format!("http://{}", self.addr)
     }
 }
@@ -340,7 +340,7 @@ impl Drop for TestServer {
     }
 }
 
-pub(super) fn start_server<F>(handler: F) -> TestServer
+pub fn start_server<F>(handler: F) -> TestServer
 where
     F: Fn(Request, TcpStream) + Send + Sync + 'static,
 {
@@ -414,7 +414,7 @@ fn read_request(mut stream: &TcpStream) -> Option<Request> {
     })
 }
 
-pub(super) fn reason(status: u16) -> &'static str {
+pub fn reason(status: u16) -> &'static str {
     match status {
         200 => "OK",
         206 => "Partial Content",
@@ -426,7 +426,7 @@ pub(super) fn reason(status: u16) -> &'static str {
     }
 }
 
-pub(super) fn send_head(stream: &mut TcpStream, status: u16, headers: &[(String, String)]) {
+pub fn send_head(stream: &mut TcpStream, status: u16, headers: &[(String, String)]) {
     let mut head = format!("HTTP/1.1 {status} {}\r\n", reason(status));
     for (name, value) in headers {
         head.push_str(&format!("{name}: {value}\r\n"));
@@ -436,7 +436,7 @@ pub(super) fn send_head(stream: &mut TcpStream, status: u16, headers: &[(String,
     let _ = stream.flush();
 }
 
-pub(super) fn send_response(
+pub fn send_response(
     stream: &mut TcpStream,
     status: u16,
     mut headers: Vec<(String, String)>,
@@ -453,11 +453,11 @@ pub(super) fn send_response(
     let _ = stream.flush();
 }
 
-pub(super) fn respond_payload(stream: &mut TcpStream, payload: &[u8]) {
+pub fn respond_payload(stream: &mut TcpStream, payload: &[u8]) {
     send_response(stream, 200, Vec::new(), payload);
 }
 
-pub(super) fn range_parts(request: &Request, payload: &[u8]) -> (u16, Vec<(String, String)>, Vec<u8>) {
+pub fn range_parts(request: &Request, payload: &[u8]) -> (u16, Vec<(String, String)>, Vec<u8>) {
     let Some(range) = request.header("range") else {
         return (
             200,
@@ -490,14 +490,14 @@ pub(super) fn range_parts(request: &Request, payload: &[u8]) -> (u16, Vec<(Strin
     )
 }
 
-pub(super) fn serve_range(stream: &mut TcpStream, request: &Request, payload: &[u8]) {
+pub fn serve_range(stream: &mut TcpStream, request: &Request, payload: &[u8]) {
     let (status, headers, body) = range_parts(request, payload);
     send_response(stream, status, headers, &body);
 }
 
 /// Trickle a payload in fixed-size chunks with a pause between them. Returns
 /// true when the client disconnected before the transfer finished.
-pub(super) fn trickle(
+pub fn trickle(
     stream: &mut TcpStream,
     payload: &[u8],
     chunk: usize,
@@ -1867,7 +1867,7 @@ fn killed_download_releases_lock_and_reclaims_partial_on_retry() {
     let mut child = std::process::Command::new(exec)
         .args([
             "--exact",
-            "installer::tests::interrupted_download_worker",
+            "tests::interrupted_download_worker",
             "--nocapture",
             "--test-threads=1",
         ])

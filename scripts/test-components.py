@@ -53,8 +53,8 @@ class PackageTests(unittest.TestCase):
         # The surrounding build may export an Android cross-compilation target.
         env.pop("GOOS", None)
         env.pop("GOARCH", None)
-        subprocess.run(["go", "build", "-trimpath", "-ldflags=-s -w", "-o", str(cls.helper),
-                        "./installer/components"], cwd=ROOT, env=env, check=True)
+        subprocess.run(["cargo", "build", "--release", "-p", "magicnet-components"], cwd=str(ROOT), env=env, check=True)
+        shutil.copy(str(Path(str(ROOT)) / "target/release/magicnet-components"), str(cls.helper))
 
     @classmethod
     def tearDownClass(cls):
