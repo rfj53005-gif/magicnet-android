@@ -165,18 +165,24 @@ magicnet_start_singbox_unlocked() {
         }
     fi
     _singbox_gomemlimit="$(magicnet_singbox_runtime_memory_limit)"
+    # GOGC=200 trades heap headroom for fewer GC cycles: the daemon's live set
+    # is small and GOMEMLIMIT (above) still caps the heap, so the saved GC work
+    # is free at any realistic load. Operators can override with
+    # MAGICNET_SINGBOX_GOGC (the standard GOGC value is passed through as-is).
+    _singbox_gogc="${MAGICNET_SINGBOX_GOGC:-200}"
     if GOMEMLIMIT="$_singbox_gomemlimit" \
+        GOGC="$_singbox_gogc" \
         MAGICNET_SINGBOX_START_ATTEMPTS="${MAGICNET_SINGBOX_START_ATTEMPTS:-3}" \
         magicnet_startup_step core-launch singbox_start; then
         :
     else
         set -- "$?"
-        unset _singbox_gomemlimit
+        unset _singbox_gomemlimit _singbox_gogc
         [ "${MAGICNET_TRANSPARENT_RESTORED_CONFIG:-0}" = 1 ] ||
             magicnet_tailscale_scrub_auth_key >/dev/null 2>&1 || true
         return "$1"
     fi
-    unset _singbox_gomemlimit
+    unset _singbox_gomemlimit _singbox_gogc
     if [ "${MAGICNET_TRANSPARENT_RESTORED_CONFIG:-0}" != 1 ]; then
         magicnet_tailscale_scrub_auth_key >/dev/null 2>&1 ||
             magicnet_warn "Failed to scrub the transient Tailscale auth key from config.json."
