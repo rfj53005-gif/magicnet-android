@@ -61,7 +61,7 @@ test("constellation only flows when every star is backed by evidence", () => {
   assert.equal(flowing.summary, "flowing");
   assert.deepEqual(flowing.edges, ["flowing", "flowing", "flowing"]);
   assert.equal(flowing.stars[1].detail, "magicnet0");
-  assert.match(flowing.stars[2].detail, /^PID 4127 · 47 MiB$/);
+  assert.match(flowing.stars[2].detail, /^PID 4127$/);
 
   // Unknown dataplane evidence is never drawn as captured traffic.
   const unproven = buildConstellation({ ...ready, transparentDataplaneReady: null, serviceReady: null }, true);

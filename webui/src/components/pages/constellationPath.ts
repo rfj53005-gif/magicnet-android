@@ -57,8 +57,8 @@ function dataplaneStar(runtime: RuntimeFacts): ConstellationStar {
 
 function coreStar(runtime: RuntimeFacts): ConstellationStar {
   if (runtime.singBoxState === "sing-box") {
-    const memory = runtime.singBoxRssKib == null ? "" : ` · ${(runtime.singBoxRssKib / 1024).toFixed(0)} MiB`;
-    return { key: "core", label: "sing-box", detail: `PID ${runtime.singBox.split(",")[0]}${memory}`, state: "ok" };
+    // Memory lives in the hero chip; the star only carries the process proof.
+    return { key: "core", label: "sing-box", detail: `PID ${runtime.singBox.split(",")[0]}`, state: "ok" };
   }
   if (runtime.singBoxState === "stopped") return { key: "core", label: "sing-box", detail: "已停止", state: "off" };
   return { key: "core", label: "sing-box", detail: "未确认", state: "unknown" };

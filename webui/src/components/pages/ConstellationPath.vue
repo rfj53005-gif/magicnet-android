@@ -46,7 +46,7 @@ function stateText(state: StarState): string {
 <style scoped>
 .mn-constellation {
   margin: 0;
-  padding: 32px 0 4px;
+  padding: 18px 0 2px;
 }
 
 .mn-constellation__path {
@@ -160,6 +160,7 @@ function stateText(state: StarState): string {
 .mn-constellation__star small {
   max-width: 100%;
   overflow-wrap: anywhere;
+  text-wrap: balance;
   color: var(--mn-ink-muted);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -172,7 +173,7 @@ function stateText(state: StarState): string {
 }
 
 figcaption {
-  margin: 16px 0 0;
+  margin: 10px 0 0;
   color: var(--mn-ink-muted);
   font-size: 12.5px;
   line-height: 1.6;

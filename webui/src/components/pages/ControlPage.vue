@@ -474,28 +474,30 @@ onMounted(() => {
       <div class="mn-control-overview">
         <div class="mn-control-status" role="status" aria-live="polite">
           <div class="mn-control-state-heading">
+            <div class="mn-control-meta">
+              <p class="mn-control-label"><StatusDot :tone="servicePendingLabel ? 'unknown' : serviceStatus.tone" />{{ t("代理服务") }}<span v-if="state.hasKsu && state.runtime.transparentMode !== 'unknown'" class="mn-control-mode">{{ transparentModeLabel }}</span></p>
+              <dl v-if="state.hasKsu && state.runtime.singBoxState === 'sing-box'" class="mn-control-memory">
+                <dt>{{ t("内核内存（RSS）") }}</dt>
+                <dd :data-unavailable="state.runtime.singBoxRssKib == null">
+                  <template v-if="state.runtime.singBoxRssKib != null">{{ (state.runtime.singBoxRssKib / 1024).toFixed(1) }} <span>MiB</span></template>
+                  <template v-else>{{ t("暂不可用") }}</template>
+                </dd>
+              </dl>
+            </div>
             <h2>{{ controlTitle }}</h2>
-            <p class="mn-control-label"><StatusDot :tone="servicePendingLabel ? 'unknown' : serviceStatus.tone" />{{ t("代理服务") }}<span v-if="state.hasKsu && state.runtime.transparentMode !== 'unknown'" class="mn-control-mode">{{ transparentModeLabel }}</span></p>
             <p class="mn-control-description">{{ controlDescription }}</p>
           </div>
-          <dl v-if="state.hasKsu && state.runtime.singBoxState === 'sing-box'" class="mn-control-memory">
-            <dt>{{ t("内核内存（RSS）") }}</dt>
-            <dd :data-unavailable="state.runtime.singBoxRssKib == null">
-              <template v-if="state.runtime.singBoxRssKib != null">{{ (state.runtime.singBoxRssKib / 1024).toFixed(1) }} <span>MiB</span></template>
-              <template v-else>{{ t("暂不可用") }}</template>
-            </dd>
-          </dl>
         </div>
         <div class="mn-control-actions">
-          <Button class="mn-control-power" :data-running="state.runtime.singBoxState === 'sing-box'" :disabled="runtimeBusy || !state.hasKsu" :loading="isRunning('toggle-sing-box') || Boolean(servicePendingLabel)" @click="toggleSingBox">
-            <Power :size="18" />{{ state.runtime.singBoxState === 'sing-box' ? t("停止服务") : t("启动服务") }}
-          </Button>
-          <div class="mn-control-shortcuts">
-            <Button variant="ghost" :disabled="!state.hasKsu" :loading="isRunning('refresh-control-status')" @click="withAction('refresh-control-status', () => refreshStatus())">
-              <RefreshCw :size="16" />{{ t("刷新状态") }}
+          <div class="mn-control-action-row">
+            <Button class="mn-control-power" :data-running="state.runtime.singBoxState === 'sing-box'" :disabled="runtimeBusy || !state.hasKsu" :loading="isRunning('toggle-sing-box') || Boolean(servicePendingLabel)" @click="toggleSingBox">
+              <Power :size="18" />{{ state.runtime.singBoxState === 'sing-box' ? t("停止服务") : t("启动服务") }}
             </Button>
-            <Button variant="ghost" :disabled="runtimeBusy || !state.hasKsu" :loading="isRunning('restart-sing-box')" @click="requestDangerAction(restartSingBoxAction(), $event.currentTarget)">
-              <RotateCcw :size="16" />{{ t("重启服务") }}
+            <Button class="mn-control-icon-action" variant="outline" :aria-label="t('刷新状态')" :title="t('刷新状态')" :disabled="!state.hasKsu" :loading="isRunning('refresh-control-status')" @click="withAction('refresh-control-status', () => refreshStatus())">
+              <RefreshCw :size="18" />
+            </Button>
+            <Button class="mn-control-icon-action" variant="outline" :aria-label="t('重启服务')" :title="t('重启服务')" :disabled="runtimeBusy || !state.hasKsu" :loading="isRunning('restart-sing-box')" @click="requestDangerAction(restartSingBoxAction(), $event.currentTarget)">
+              <RotateCcw :size="18" />
             </Button>
           </div>
         </div>
@@ -800,26 +802,27 @@ onMounted(() => {
 <style scoped>
 .mn-control { max-width: 1040px; margin-inline: auto; }
 .mn-control-hero { padding: 12px 0 8px; }
-.mn-control-overview { display: grid; gap: 28px; }
-.mn-control-status { display: grid; gap: 18px; min-width: 0; }
+.mn-control-overview { display: grid; gap: 20px; }
+.mn-control-status { display: grid; gap: 12px; min-width: 0; }
 .mn-control-state-heading { min-width: 0; }
-.mn-control-label { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 16px 0 0; color: var(--mn-ink-muted); font-size: 13px; font-weight: 500; }
+.mn-control-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.mn-control-label { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0; color: var(--mn-ink-muted); font-size: 13px; font-weight: 500; }
 .mn-control-mode { padding: 2px 8px; border-radius: 6px; background: var(--mn-surface-sunken); color: var(--mn-ink-soft); font-family: var(--font-mono); font-size: 12px; }
-.mn-control-status h2 { margin: 0; color: var(--mn-ink); font-family: var(--font-sans); font-size: clamp(32px, 7vw, 48px); font-weight: 550; line-height: 1.15; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.mn-control-status h2 { margin: 12px 0 0; color: var(--mn-ink); font-family: var(--font-sans); font-size: clamp(32px, 7vw, 48px); font-weight: 550; line-height: 1.15; letter-spacing: -.03em; overflow-wrap: anywhere; }
 .mn-control-hero[data-service-state="ready"] .mn-control-status h2 { color: var(--mn-ink); }
-.mn-control-description { margin: 12px 0 0; max-width: 46ch; color: var(--mn-ink-muted); font-size: 15px; line-height: 1.7; }
-.mn-control-memory { display: inline-flex; width: fit-content; align-items: baseline; gap: 12px; margin: 0; padding: 8px 14px; border-radius: 999px; background: var(--mn-surface-sunken); }
+.mn-control-description { margin: 8px 0 0; max-width: 46ch; color: var(--mn-ink-muted); font-size: 15px; line-height: 1.7; }
+.mn-control-memory { display: inline-flex; width: fit-content; align-items: baseline; gap: 8px; margin: 0; padding: 5px 11px; border-radius: 999px; background: var(--mn-surface-sunken); }
 .mn-control-memory dt { color: var(--mn-ink-muted); font-size: 12px; }
-.mn-control-memory dd { margin: 0; color: var(--mn-ink); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mn-control-memory dd { margin: 0; color: var(--mn-ink); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mn-control-memory dd > span { color: var(--mn-ink-muted); font-size: 12px; font-weight: 400; }
 .mn-control-memory dd[data-unavailable="true"] { color: var(--mn-ink-muted); font-size: 13px; font-weight: 400; }
 .mn-control-actions { align-self: center; min-width: 0; }
-.mn-control-power { width: 100%; min-height: 56px; border-radius: var(--mn-radius-lg); font-size: 15px; font-weight: 600; }
+.mn-control-action-row { display: flex; align-items: stretch; gap: 8px; }
+.mn-control-power { flex: 1; width: auto; min-height: 56px; border-radius: var(--mn-radius-lg); font-size: 15px; font-weight: 600; }
 .mn-control-power[data-running="true"] { border-color: var(--mn-ink); background: var(--mn-ink); color: var(--mn-ivory); box-shadow: none; }
 .mn-control-power[data-running="true"]:hover { border-color: var(--mn-ink-soft); background: var(--mn-ink-soft); }
-.mn-control-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-.mn-control-shortcuts > button { padding-inline: 6px; }
-.mn-service-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 24px 0 0; }
+.mn-control-icon-action { flex: none; width: 56px; min-height: 56px; padding: 0; border-radius: var(--mn-radius-lg); }
+.mn-service-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 16px 0 0; }
 .mn-service-facts > div { min-width: 0; padding: 8px 0; }
 .mn-service-facts dt { color: var(--mn-ink-muted); font-size: 12px; overflow-wrap: anywhere; }
 .mn-service-facts dd { margin: 6px 0 0; color: var(--mn-ink); font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
