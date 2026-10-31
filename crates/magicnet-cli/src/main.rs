@@ -44,6 +44,7 @@ mod ebpf_runtime;
 mod ecapture;
 #[cfg(test)]
 mod hotspot_tests;
+mod installer;
 mod local_http;
 mod machine;
 mod mcp;

@@ -57,6 +57,7 @@ const COMMANDS: &[CommandSpec] = commands! {
     "ecapture" => ecapture_cmd, "{status|version|help [tls|gotls|nspr|pcap]|tls [seconds] [pid|all] [uid|all]|gotls [seconds] [pid|all] [uid|all]|nspr [seconds] [pid|all] [uid|all]|pcap [seconds] <ifname> [pcap-filter ...]}";
     "sysroute" => |_, args| sysroute(&prefixed_args("sysroute", args)), "{list|snapshot|add-rule <priority> <table>|del-rule <priority>|add-route <table> <dest|default> <dev> [via]|del-route <table> <dest|default>}";
     "repair" => |app, _| repair(app), "";
+    "installer" => crate::installer::command, "{install|fetch|verify|apply} --archive <zip> [--module-dir <dir>] [--previous-dir <dir>] [--cache-dir <dir>] [--offline] | cleanup-legacy --module-dir <dir>";
     "support" => support, "bundle";
     "setup" => |app, args| setup_subscription(app, args.first().map_or("", String::as_str)), "<subscription-url>";
     "config" => config_cmd, "apply";
@@ -147,6 +148,7 @@ pub(crate) fn needs_state_reconcile(args: &[String]) -> bool {
             false
         }
         ("support", "bundle") => false,
+        ("installer", "verify" | "fetch" | "cleanup-legacy") => false,
         ("sysroute", "list" | "snapshot") => false,
         ("config-editor", "get" | "path") => false,
         ("config-editor", "repo") => !matches!(action, "get" | "get-json"),
