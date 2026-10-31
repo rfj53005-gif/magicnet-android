@@ -415,7 +415,7 @@ impl Installer<'_> {
                 reason: String::new(),
                 retryable: false,
             });
-            if candidates.len() >= MAX_MIRROR_ROUTES + 1 {
+            if candidates.len() > MAX_MIRROR_ROUTES {
                 break;
             }
         }
