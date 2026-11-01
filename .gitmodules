@@ -15,7 +15,7 @@
 	branch = main
 [submodule "sing-box"]
 	path = sing-box
-	url = https://github.com/rfj53005-gif/magicnet-core.git
+	url = https://github.com/rfj53005-gif/magicnet-core-selfuse.git
 	branch = testing
 	shallow = true
 [submodule "rules"]
