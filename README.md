@@ -1,3 +1,7 @@
+> **个人镜像 / Personal mirror**
+> 本仓库是 [rfj](https://github.com/rfj53005-gif) 的个人构建镜像，**上游项目是 [LIghtJUNction/MagicNet](https://github.com/LIghtJUNction/MagicNet)**（MIT，© 2025 LIghtJUNction）。
+> 与上游作者**无隶属或背书关系**；本地改动与许可见 [NOTICE.md](NOTICE.md)。安装包为个人自用构建。
+
 <p align="center">
   <img src="./icon.png" alt="MagicNet Logo" width="180" />
 </p>
