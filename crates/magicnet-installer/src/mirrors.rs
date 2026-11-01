@@ -135,6 +135,7 @@ impl Installer<'_> {
             .args([
                 "-q",
                 "-sS",
+                "--location",
                 "--no-buffer",
                 "--noproxy",
                 "*",

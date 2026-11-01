@@ -2546,3 +2546,48 @@ fn bootstrap_resolves_nothing_in_process() {
     let envs: Vec<_> = command.get_envs().collect();
     assert_eq!(envs.len(), 2, "only PATH and LC_ALL survive env_clear");
 }
+#[test]
+fn curl_follows_redirects() {
+    // GitHub release assets answer 302; the downloader must follow the
+    // Location header instead of parsing the redirect response as the body.
+    let server = start_server(move |request, mut stream| {
+        if request.path == "/final" {
+            send_head(&mut stream, 200, &[("Content-Length".into(), "2".into())]);
+            let _ = stream.write_all(b"ok");
+        } else {
+            send_head(
+                &mut stream,
+                302,
+                &[("Location".to_string(), "/final".to_string())],
+            );
+        }
+    });
+    let temp = TempDir::new();
+    let config = Config {
+        archive: temp.path().join("archive.zip"),
+        module_dir: temp.path().join("module"),
+        previous_dir: PathBuf::new(),
+        cache_dir: None,
+        offline: true,
+        mirrors: Some(Vec::new()),
+        base_url: Some(format!("{}/", server.url())),
+        log: Log::Discard,
+        body_idle_timeout: Some(Duration::from_secs(10)),
+        probe_timeout: Some(Duration::from_millis(100)),
+        slow_window: None,
+        request_timeout: Some(Duration::from_secs(10)),
+        allow_http: true,
+        curl: None,
+    };
+    let installer = Installer::new(&config);
+    let mut command = installer.curl_command(
+        &format!("{}/start", server.url()),
+        None,
+        Duration::from_secs(10),
+        Duration::from_secs(2),
+    );
+    let output = command.output().expect("run curl");
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains(" 200"), "redirect not followed: {text}");
+    assert!(text.ends_with("ok"), "final body missing: {text}");
+}
