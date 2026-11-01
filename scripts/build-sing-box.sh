@@ -58,27 +58,50 @@ command -v go >/dev/null 2>&1 || {
 
 CGO_ENABLED_TARGET=0
 CC_TARGET=""
-if [[ "$GOOS_TARGET/$GOARCH_TARGET" = "android/amd64" ]]; then
-    NDK_ROOT="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
-    if [[ -z "$NDK_ROOT" ]] && [[ -n "${ANDROID_HOME:-}" ]] &&
-        [[ -d "$ANDROID_HOME/ndk" ]]; then
-        NDK_ROOT="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d -print |
-            sort -V | tail -n1)"
+RUST_SCANNER=0
+
+ndk_root() {
+    local root="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
+    if [[ -z "$root" ]] && [[ -n "${ANDROID_HOME:-}" ]] && [[ -d "$ANDROID_HOME/ndk" ]]; then
+        root="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -n1)"
     fi
-    if [[ -z "$NDK_ROOT" ]] && [[ -d /opt/android-ndk ]]; then
-        NDK_ROOT=/opt/android-ndk
+    if [[ -z "$root" ]] && [[ -d /opt/android-ndk ]]; then
+        root=/opt/android-ndk
     fi
-    NDK_TOOLCHAINS="$NDK_ROOT/toolchains/llvm/prebuilt"
-    if [[ -d "$NDK_TOOLCHAINS" ]]; then
-        CC_TARGET="$(find "$NDK_TOOLCHAINS" -type f \
-            -name 'x86_64-linux-android21-clang' -print -quit)"
-    fi
+    printf '%s' "$root"
+}
+
+ndk_clang() {
+    local toolchains triple
+    toolchains="$(ndk_root)/toolchains/llvm/prebuilt"
+    [[ -d "$toolchains" ]] || return 0
+    triple="$1"
+    find "$toolchains" -type f -name "${triple}-clang" -print | sort -V | tail -n1
+}
+
+case "$GOOS_TARGET/$GOARCH_TARGET" in
+android/amd64)
+    CC_TARGET="$(ndk_clang x86_64-linux-android21)"
     if [[ ! -x "$CC_TARGET" ]]; then
         printf 'sing-box build: Android NDK clang is required for android/amd64\n' >&2
         exit 1
     fi
     CGO_ENABLED_TARGET=1
-fi
+    ;;
+android/arm64)
+    CC_TARGET="$(ndk_clang aarch64-linux-android35)"
+    if [[ ! -x "$CC_TARGET" ]]; then
+        # Older NDK layouts only ship the unversioned launcher.
+        CC_TARGET="$(ndk_clang 'aarch64-linux-android[0-9]*')"
+    fi
+    if [[ ! -x "$CC_TARGET" ]]; then
+        printf 'sing-box build: Android NDK clang is required for android/arm64\n' >&2
+        exit 1
+    fi
+    CGO_ENABLED_TARGET=1
+    RUST_SCANNER=1
+    ;;
+esac
 
 BUILD_TAGS_FILE="$SOURCE_DIR/release/DEFAULT_BUILD_TAGS_OTHERS"
 SHARED_LDFLAGS_FILE="$SOURCE_DIR/release/LDFLAGS"
@@ -89,8 +112,27 @@ if [[ ! -s "$BUILD_TAGS_FILE" ]] || [[ ! -s "$SHARED_LDFLAGS_FILE" ]] ||
 fi
 
 BUILD_TAGS="$(tr -d '\r\n' <"$BUILD_TAGS_FILE")"
+
+android_build_tags() {
+    local tags is_extra
+    tags=",$1,"
+    tags="${tags//,with_lxd,/,,}"
+    while [[ "$tags" == *",,"* ]]; do
+        tags="${tags//,,/,}"
+    done
+    tags="${tags#,}"
+    tags="${tags%,}"
+    for is_extra in with_lx_rust_proc with_lx_rust_proc_rust2; do
+        [[ ",$tags," == *",$is_extra,"* ]] || tags="${tags:+$tags,}$is_extra"
+    done
+    printf '%s' "$tags"
+}
+
 SHARED_LDFLAGS="$(tr '\r\n' '  ' <"$SHARED_LDFLAGS_FILE")"
 BASE_VERSION="$(tr -d '\r\n' <"$VERSION_FILE")"
+if [[ "$GOOS_TARGET" = android ]]; then
+    BUILD_TAGS="$(android_build_tags "$BUILD_TAGS")"
+fi
 if [[ ! "$BUILD_TAGS" =~ ^[a-zA-Z0-9_,.-]+$ ]]; then
     printf 'sing-box build: fork build tags contain unsupported characters\n' >&2
     exit 1
@@ -112,6 +154,17 @@ cleanup() {
     rm -f "$TMP_OUTPUT"
 }
 trap cleanup EXIT
+
+if [[ "$RUST_SCANNER" -eq 1 ]]; then
+    printf 'sing-box build: building the Rust scanner (aarch64-linux-android, rust2)\n' >&2
+    (
+        cd "$SOURCE_DIR"
+        ./experimental/lx_rust_proc/build.sh aarch64-linux-android rust2
+    ) >&2 || {
+        printf 'sing-box build: Rust scanner build failed\n' >&2
+        exit 1
+    }
+fi
 
 printf 'sing-box build: %s @ %s for %s/%s (CGO=%s)\n' \
     'LIghtJUNction/sing-box' "$SOURCE_REVISION" "$GOOS_TARGET" "$GOARCH_TARGET" \
